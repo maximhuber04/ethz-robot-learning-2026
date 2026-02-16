@@ -1,4 +1,5 @@
-# Pytorch tutorial
+# Homework 1: Pytorch tutorial
+**Due Date: 26.02.26 23:59 CET**
 
 ## Setup (uv) + Jupyter
 
