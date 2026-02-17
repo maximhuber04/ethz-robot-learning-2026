@@ -1,5 +1,6 @@
 # Homework 1: Pytorch tutorial
 **Due Date: 26.02.26 23:59 CET**
+**Needs to be solved individually. Gradescope checks for duplicate code.**
 
 ## Setup (uv) + Jupyter
 
