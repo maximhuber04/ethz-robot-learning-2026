@@ -1,0 +1,5 @@
+.venv/
+mujoco/
+__pycache__/
+.DS_STORE*
+hw1_pytorch_tutorial/src/data/
