@@ -30,14 +30,17 @@ From the root directory of the repository:
 
 > **Tip:** If you get an execution policy error on Windows, run: `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
+**Installing Virtual Environment in Desktops at CAB H56 & H57:** 
+For those who use the lab computers. The personal drive only has 10 GB sapce. The virtual environment requires 7-8 GB space. A viable solution is to install the venv in the /tmp folder (16 GB) and put your own code in the personal drive. You can write a bash script to install the venv and run it every time you log into a lab computer to restore the venv in \tmp.
+
 ---
 
 ## 2. Install the Package and Dependencies
 
 Install the requirements and then the local `so101_gym` package in editable (development) mode — this automatically pulls in all required libraries:
 
-`pip install -r hw2_so100_tutorial/requirements.txt`
-`pip install -e hw2_so100_tutorial`
+`pip install -r hw2_robot_control_mdps/requirements.txt` \
+`pip install -e hw2_robot_control_mdps`
 
 ### What Gets Installed
 
