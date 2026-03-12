@@ -107,17 +107,12 @@ def ik_track(
             break
 
         # Get the Jacobian of the end-effector using mj_jacSite.
-        jacp = np.zeros((3, num_joints))  # position Jacobian
-        jacr = np.zeros((3, num_joints))  # orientation Jacobian
+        jacp = np.zeros((3, num_joints))  # position Jac
+        jacr = np.zeros((3, num_joints))  # orientation Jac
         mujoco.mj_jacSite(model, data, jacp, jacr, model.site(site_name).id)
         J = np.vstack([jacp, jacr])  # shape (6, nv)
 
         # DONE: compute the change in joint configuration (qdot) using Damped Least Squares method to reduce the position error
-        # Damped least squares: qdot = J^T @ (J @ J^T + damping * I)^-1 @ weighted_err
-        # Hint: damping * I is a 6x6 matrix with damping on the diagonal, and weighted error is a 6D vector (3 for pos, 3 for rot) of the form
-        # [pos_gain * err_pos, rot_gain * err_rot]. Since we are ignoring orientation tracking, you can set the rotational part of the weighted error to zero.
-        # Instead of directly computing the matrix inverse (which can be numerically unstable), you should use np.linalg.solve to solve the
-        # linear system (J @ J^T + damping * I) x = weighted_err for x, and then compute qdot = J^T @ x. This is more stable and efficient than computing the inverse.
         weighted_err = np.zeros(6)
         weighted_err[:3] = pos_gain * err_pos
         x = np.linalg.solve(J @ J.T + damping * np.eye(6), weighted_err)

@@ -19,7 +19,7 @@ def generate_quintic_spline_waypoints(start, end, num_points):
         np.ndarray: Generated waypoints.
     """
     s = np.linspace(0, 1, num_points)
-    f_s = 10 * s**3 - 15 * s**4 + 6 * s**5
+    f_s = 10 * s**3 - 15 * s**4 + 6 * s**5  # acc to lecture 2
     waypoints = start + (end - start) * f_s[:, np.newaxis]
     return waypoints
 
