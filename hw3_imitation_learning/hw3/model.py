@@ -25,14 +25,11 @@ class BasePolicy(nn.Module, metaclass=abc.ABCMeta):
         """Compute training loss for a batch."""
 
     @abc.abstractmethod
-    def sample_actions(
-        self,
-        state: torch.Tensor,
-    ) -> torch.Tensor:
+    def sample_actions(self, state: torch.Tensor) -> torch.Tensor:
         """Generate a chunk of actions with shape (batch, chunk_size, action_dim)."""
 
 
-# TODO: Students implement ObstaclePolicy here.
+# DONE: Students implement ObstaclePolicy here.
 class ObstaclePolicy(BasePolicy):
     """Predicts action chunks with an MSE loss.
 
@@ -42,51 +39,92 @@ class ObstaclePolicy(BasePolicy):
 
     def __init__(
         self,
+        state_dim: int,
+        action_dim: int,
+        chunk_size: int = 16,
+        d_model: int = 256,
+        depth: int = 3,
+        dropout: float = 0.0,
     ) -> None:
-        super().__init__()
+        super().__init__(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            chunk_size=chunk_size,
+        )
+        layers: list[nn.Module] = []
+        input_dim = state_dim
+        for _ in range(depth):
+            layers.append(nn.Linear(input_dim, d_model))
+            layers.append(nn.ReLU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            input_dim = d_model
+        layers.append(nn.Linear(input_dim, chunk_size * action_dim))
+        self.mlp = nn.Sequential(*layers)
 
-    def forward(
-        self,
-    ) -> torch.Tensor:
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         """Return predicted action chunk of shape (B, chunk_size, action_dim)."""
-        raise NotImplementedError
+        return self.mlp(state).view(-1, self.chunk_size, self.action_dim)
 
     def compute_loss(
         self,
-    ) -> torch.Tensor:
-        raise NotImplementedError
-
-    def sample_actions(
-        self,
         state: torch.Tensor,
+        action_chunk: torch.Tensor,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        pred = self.forward(state)
+        return nn.functional.mse_loss(pred, action_chunk)
+
+    def sample_actions(self, state: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            return self.forward(state)
 
 
-# TODO: Students implement MultiTaskPolicy here.
+# DONE: Students implement MultiTaskPolicy here.
+
+
 class MultiTaskPolicy(BasePolicy):
     """Goal-conditioned policy for the multicube scene."""
 
     def __init__(
         self,
+        state_dim: int,
+        action_dim: int,
+        chunk_size: int = 16,
+        d_model: int = 256,
+        depth: int = 3,
+        dropout: float = 0.0,
     ) -> None:
-        super().__init__()
+        super().__init__(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            chunk_size=chunk_size,
+        )
+        layers: list[nn.Module] = []
+        input_dim = state_dim
+        for _ in range(depth):
+            layers.append(nn.Linear(input_dim, d_model))
+            layers.append(nn.ReLU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            input_dim = d_model
+        layers.append(nn.Linear(input_dim, chunk_size * action_dim))
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        """Return predicted action chunk of shape (B, chunk_size, action_dim)."""
+        return self.mlp(state).view(-1, self.chunk_size, self.action_dim)
 
     def compute_loss(
         self,
+        state: torch.Tensor,
+        action_chunk: torch.Tensor,
     ) -> torch.Tensor:
-        raise NotImplementedError
+        pred = self.forward(state)
+        return nn.functional.mse_loss(pred, action_chunk)
 
-    def sample_actions(
-        self,
-    ) -> torch.Tensor:
-        raise NotImplementedError
-
-    def forward(
-        self,
-    ) -> torch.Tensor:
-        """Return predicted action chunk of shape (B, chunk_size, action_dim)."""
-        raise NotImplementedError
+    def sample_actions(self, state: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            return self.forward(state)
 
 
 PolicyType: TypeAlias = Literal["obstacle", "multitask"]
@@ -97,17 +135,29 @@ def build_policy(
     *,
     state_dim: int,
     action_dim: int,
+    chunk_size: int = 16,
+    d_model: int = 256,
+    depth: int = 3,
+    dropout: float = 0.0,
 ) -> BasePolicy:
     if policy_type == "obstacle":
         return ObstaclePolicy(
-            action_dim=action_dim,
             state_dim=state_dim,
-            # TODO: Build with your chosen specifications
+            action_dim=action_dim,
+            # DONE: Build with your chosen specifications
+            chunk_size=chunk_size,
+            d_model=d_model,
+            depth=depth,
+            dropout=dropout,
         )
     if policy_type == "multitask":
         return MultiTaskPolicy(
-            action_dim=action_dim,
             state_dim=state_dim,
-            # TODO: Build with your chosen specifications
+            action_dim=action_dim,
+            # DONE: Build with your chosen specifications
+            chunk_size=chunk_size,
+            d_model=d_model,
+            depth=depth,
+            dropout=dropout,
         )
     raise ValueError(f"Unknown policy type: {policy_type}")

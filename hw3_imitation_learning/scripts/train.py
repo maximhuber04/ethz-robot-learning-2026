@@ -24,13 +24,14 @@ from hw3.dataset import (
 )
 from hw3.model import BasePolicy, build_policy
 
-# TODO: Any imports you want from torch or other libraries we use. Not allowed: libraries we don't use
+# DONE: Any imports you want from torch or other libraries we use. Not allowed: libraries we don't use
 from torch.utils.data import DataLoader, random_split
+from datetime import datetime
 
-# TODO: Choose your own hyperparameters!
-EPOCHS = ... 
-BATCH_SIZE = ...
-LR = ...
+# DONE: Choose your own hyperparameters!
+EPOCHS = 100
+BATCH_SIZE = 256
+LR = 1e-3
 VAL_SPLIT = 0.1
 
 
@@ -46,8 +47,18 @@ def train_one_epoch(
 
     for batch in loader:
         states, action_chunks = batch
-        # TODO: Implement the training step for one batch here.
+        # DONE: Implement the training step for one batch here.
         # This mostly: Get states and action_chunks onto the correct device, compute the loss, and step the optimizer.
+        states = states.to(device)
+        action_chunks = action_chunks.to(device)
+
+        optimizer.zero_grad()
+        loss = model.compute_loss(states, action_chunks)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item()
+        n_batches += 1
 
     return total_loss / max(n_batches, 1)
 
@@ -64,13 +75,18 @@ def evaluate(
 
     for batch in loader:
         states, action_chunks = batch
-        # TODO: Implement the evaluation step for one batch here.
+        # DONE: Implement the evaluation step for one batch here.
+        states = states.to(device)
+        action_chunks = action_chunks.to(device)
+        loss = model.compute_loss(states, action_chunks)
+        total_loss += loss.item()
+        n_batches += 1
 
     return total_loss / max(n_batches, 1)
 
 
 def main() -> None:
-    # TODO: You may add any cli arguments that make life easier for you like learning rate etc.
+    # DONE: You may add any cli arguments that make life easier for you like learning rate etc.
     parser = argparse.ArgumentParser(description="Train action-chunking policy.")
     parser.add_argument(
         "--zarr", type=Path, required=True, help="Path to processed .zarr store."
@@ -103,6 +119,13 @@ def main() -> None:
         "Supports column slicing with [:N], [M:], [M:N]. "
         "If omitted, uses the action_key attribute from the zarr metadata.",
     )
+    parser.add_argument("--lr", type=float, default=LR)
+    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument("--epochs", type=int, default=EPOCHS)
+    parser.add_argument("--d-model", type=int, default=256)
+    parser.add_argument("--depth", type=int, default=3)
+    parser.add_argument("--dropout", type=float, default=0.0)
+    parser.add_argument("--extra-zarr", nargs="+", type=Path)
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
 
@@ -148,26 +171,30 @@ def main() -> None:
     )
 
     train_loader = DataLoader(
-        train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0
+        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
     )
     val_loader = DataLoader(
-        val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0
+        val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
     # ── model ─────────────────────────────────────────────────────────
+    # DONE: build with your desired specifications
     model = build_policy(
         args.policy,
         state_dim=states.shape[1],
         action_dim=actions.shape[1],
-        # TODO: build with your desired specifications
+        chunk_size=args.chunk_size,
+        d_model=args.d_model,
+        depth=args.depth,
+        dropout=args.dropout,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {n_params:,}")
 
-    # TODO: implement an optimizer and scheduler
-    # optimizer =
-    # scheduler =
+    # DONE: implement an optimizer and scheduler
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
     # ── training loop ─────────────────────────────────────────────────
     best_val = float("inf")
@@ -181,23 +208,24 @@ def main() -> None:
                 action_space = base.removeprefix("action_")
                 break
 
-    save_name = f"best_model_{action_space}_{args.policy}.pt"
+    dt_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_name = f"best_model_{action_space}_{args.policy}_seed_{args.seed}_{dt_str}.pt"
 
     n_dagger_eps = 0
     for zp in zarr_paths:
         z = zarr_lib.open_group(str(zp), mode="r")
         n_dagger_eps += z.attrs.get("num_dagger_episodes", 0)
     if n_dagger_eps > 0:
-        save_name = f"best_model_{action_space}_{args.policy}_dagger{n_dagger_eps}ep.pt"
+        save_name = f"best_model_{action_space}_{args.policy}_dagger{n_dagger_eps}ep_seed_{args.seed}_{dt_str}.pt"
     # Default: checkpoints/<task>/
     if "multi_cube" in str(args.zarr):
         ckpt_dir = Path("./checkpoints/multi_cube")
     else:
-        ckpt_dir = Path("./checkpoints/single_cube")
+        ckpt_dir = Path(f"./checkpoints/single_cube")
     save_path = ckpt_dir / save_name
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
-    for epoch in range(1, EPOCHS + 1):
+    for epoch in range(1, args.epochs + 1):
         train_loss = train_one_epoch(model, train_loader, optimizer, device)
         val_loss = evaluate(model, val_loader, device)
         scheduler.step()
@@ -217,6 +245,8 @@ def main() -> None:
                         "action_std": normalizer.action_std,
                     },
                     "chunk_size": args.chunk_size,
+                    "d_model": args.d_model,
+                    "depth": args.depth,
                     "policy_type": args.policy,
                     "state_keys": args.state_keys,
                     "action_keys": args.action_keys,
@@ -229,9 +259,33 @@ def main() -> None:
             tag = " ✓ saved"
 
         print(
-            f"Epoch {epoch:3d}/{EPOCHS} | "
+            f"Epoch {epoch:3d}/{args.epochs} | "
             f"train {train_loss:.6f} | val {val_loss:.6f}{tag}"
         )
+
+    torch.save(
+        {
+            "epoch": args.epochs,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "normalizer": {
+                "state_mean": normalizer.state_mean,
+                "state_std": normalizer.state_std,
+                "action_mean": normalizer.action_mean,
+                "action_std": normalizer.action_std,
+            },
+            "chunk_size": args.chunk_size,
+            "d_model": args.d_model,
+            "depth": args.depth,
+            "policy_type": args.policy,
+            "state_keys": args.state_keys,
+            "action_keys": args.action_keys,
+            "state_dim": int(states.shape[1]),
+            "action_dim": int(actions.shape[1]),
+            "val_loss": val_loss,
+        },
+        f"checkpoints/multi_cube/last_epoch_{action_space}_{args.policy}_seed_{args.seed}_{dt_str}.pt",
+    )
 
     print(f"\nBest val loss: {best_val:.6f}")
     print(f"Checkpoint: {save_path}")
