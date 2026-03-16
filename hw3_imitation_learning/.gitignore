@@ -11,3 +11,8 @@ build/
 *.swp
 
 datasets/
+checkpoints/multi_cube/shit
+
+# own scripts
+scripts/eval_record.py
+videos/
