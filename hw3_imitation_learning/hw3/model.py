@@ -39,12 +39,12 @@ class ObstaclePolicy(BasePolicy):
 
     def __init__(
         self,
-        state_dim: int,
-        action_dim: int,
-        chunk_size: int = 16,
-        d_model: int = 256,
-        depth: int = 3,
-        dropout: float = 0.0,
+        state_dim,
+        action_dim,
+        chunk_size=16,
+        d_model=256,
+        depth=3,
+        dropout=0.0,
     ) -> None:
         super().__init__(
             state_dim=state_dim,
@@ -80,27 +80,27 @@ class ObstaclePolicy(BasePolicy):
 
 
 # DONE: Students implement MultiTaskPolicy here.
-
-
 class MultiTaskPolicy(BasePolicy):
     """Goal-conditioned policy for the multicube scene."""
 
     def __init__(
         self,
-        state_dim: int,
-        action_dim: int,
-        chunk_size: int = 16,
-        d_model: int = 256,
-        depth: int = 3,
-        dropout: float = 0.0,
+        state_dim,
+        action_dim,
+        chunk_size=16,
+        d_model=256,
+        depth=3,
+        dropout=0.1,
     ) -> None:
         super().__init__(
             state_dim=state_dim,
             action_dim=action_dim,
             chunk_size=chunk_size,
         )
+        feature_dim = 13
+
         layers: list[nn.Module] = []
-        input_dim = state_dim
+        input_dim = feature_dim
         for _ in range(depth):
             layers.append(nn.Linear(input_dim, d_model))
             layers.append(nn.ReLU())
@@ -112,7 +112,33 @@ class MultiTaskPolicy(BasePolicy):
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """Return predicted action chunk of shape (B, chunk_size, action_dim)."""
-        return self.mlp(state).view(-1, self.chunk_size, self.action_dim)
+
+        ee_xyz = state[:, 0:3]
+        gripper = state[:, 3:4]
+        red_xyz = state[:, 4:7]
+        green_xyz = state[:, 7:10]
+        blue_xyz = state[:, 10:13]
+        goal_onehot = state[:, 13:16]
+        goal_pos = state[:, 16:19]
+
+        cubes = torch.stack([red_xyz, green_xyz, blue_xyz], dim=1)
+        goal_idx = goal_onehot.argmax(dim=1)
+        batch_idx = torch.arange(state.shape[0], device=state.device)
+        target_xyz = cubes[batch_idx, goal_idx]
+        target_rel_to_ee = target_xyz - ee_xyz
+        bin_rel_to_target = goal_pos - target_xyz
+
+        features = torch.cat(
+            [
+                ee_xyz,
+                gripper,
+                target_rel_to_ee,
+                bin_rel_to_target,
+                goal_onehot,
+            ],
+            dim=1,
+        )
+        return self.mlp(features).view(-1, self.chunk_size, self.action_dim)
 
     def compute_loss(
         self,
@@ -133,12 +159,12 @@ PolicyType: TypeAlias = Literal["obstacle", "multitask"]
 def build_policy(
     policy_type: PolicyType,
     *,
-    state_dim: int,
-    action_dim: int,
-    chunk_size: int = 16,
-    d_model: int = 256,
-    depth: int = 3,
-    dropout: float = 0.0,
+    state_dim,
+    action_dim,
+    chunk_size=16,
+    d_model=256,
+    depth=3,
+    dropout=0.0,
 ) -> BasePolicy:
     if policy_type == "obstacle":
         return ObstaclePolicy(
