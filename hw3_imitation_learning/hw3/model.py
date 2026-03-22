@@ -23,10 +23,12 @@ class BasePolicy(nn.Module, metaclass=abc.ABCMeta):
         self, state: torch.Tensor, action_chunk: torch.Tensor
     ) -> torch.Tensor:
         """Compute training loss for a batch."""
+        raise NotImplementedError
 
     @abc.abstractmethod
     def sample_actions(self, state: torch.Tensor) -> torch.Tensor:
         """Generate a chunk of actions with shape (batch, chunk_size, action_dim)."""
+        raise NotImplementedError
 
 
 # DONE: Students implement ObstaclePolicy here.
