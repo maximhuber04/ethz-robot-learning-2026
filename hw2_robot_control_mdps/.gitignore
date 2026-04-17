@@ -4,3 +4,5 @@ logs/
 *.egg-info/
 *.pycache/
 deliverables/
+*.pyc
+*.pyo
