@@ -11,13 +11,12 @@ Please keep the remaining parameters unchanged unless explicitly stated.
 """
 
 DQN_PARAMETERS = {
-    # TODO: Tune the following hyperparameters
+    # DONE: Tune the following hyperparameters
     # Replace the default values with your own choices.
-    "lr": 1e-3,            # TODO
-    "epsilon": 0.03,       # TODO
-    "target_update": 10,   # TODO
-    "hidden_dim": 128,     # TODO
-    
+    "lr": 1e-3,  # DONE
+    "epsilon": 0.03,  # DONE
+    "target_update": 10,  # DONE
+    "hidden_dim": 128,  # DONE
     # Fixed parameters
     "gamma": 0.99,
     "num_episodes": 500,
